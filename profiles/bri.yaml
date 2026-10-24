@@ -1,0 +1,30 @@
+# Bank Rakyat Indonesia (BRIAPI), from its public SNAP documentation.
+name: bri
+displayName: BRI (BRIAPI)
+description: >-
+  BRIAPI SNAP sandbox behaviour as documented publicly. Duplicate
+  partnerReferenceNo shares case code 00 with Conflict.
+sources:
+  - https://developers.bri.co.id/en/snap-bi/apidocs-oauth-snap-bi
+  - https://developers.bri.co.id/en/snap-bi/apidocs-balance-inquiry-snap-bi
+  - https://developers.bri.co.id/en/snap-bi/api-account-inquiry-internal-intrabank-transfer-v11
+  - https://developers.bri.co.id/en/snap-bi/api-transaction-status-inquiry
+paths:
+  accessToken: /snap/v1.0/access-token/b2b
+  balanceInquiry: /snap/v1.0/balance-inquiry
+  transferIntrabank: /intrabank/snap/v2.0/transfer-intrabank
+  transferStatus: /snap/v1.0/transfer/status
+timestamp:
+  # The text asks for yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, but BRI's own example uses +07:00.
+  timezone: UTC
+  milliseconds: true
+signature:
+  queryString: exclude # "the URL after the hostname and port without the query parameters"
+accessToken:
+  tokenType: BearerToken # from BRI's response example
+transferStatus:
+  notFound: http-404 # 404XX01 "Transaction not found"
+responseCases:
+  duplicatePartnerReferenceNo: '00' # BRI lists 409XX00 for both Conflict and duplicates
+unverified:
+  - timestamp.timezone

@@ -1,0 +1,49 @@
+# One mock per shipped profile, on the same ports Playwright uses (profiles sorted by name),
+# plus the notification inbox the mocks notify when a pending transfer settles.
+# With these running, `npx playwright test` reuses them instead of starting its own;
+# /health?profile=<name> makes sure each port really emulates the expected profile.
+#
+#   npm run keys:ensure      # once: the containers mount the host key pairs read-only
+#   docker compose up -d --build
+#   npx playwright test
+
+x-snapcheck: &snapcheck
+  build: .
+  image: snapcheck-mock
+  volumes:
+    - ./.keys:/app/.keys:ro
+  restart: unless-stopped
+
+x-mock-env: &mock-env
+  MOCK_NOTIFICATION_URL: http://inbox:4100/snap/notify
+
+services:
+  inbox:
+    <<: *snapcheck
+    entrypoint: ['node', 'bin/snapcheck.mjs', 'inbox']
+    environment: { INBOX_HOST: 0.0.0.0, INBOX_PORT: '4100' }
+    ports: ['127.0.0.1:4100:4100']
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4100/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  mock-bca:
+    <<: *snapcheck
+    environment: { <<: *mock-env, MOCK_PROFILE: bca }
+    ports: ['127.0.0.1:4010:4010']
+    depends_on: [inbox]
+  mock-bri:
+    <<: *snapcheck
+    environment: { <<: *mock-env, MOCK_PROFILE: bri }
+    ports: ['127.0.0.1:4011:4010']
+    depends_on: [inbox]
+  mock-default:
+    <<: *snapcheck
+    environment: { <<: *mock-env, MOCK_PROFILE: default }
+    ports: ['127.0.0.1:4012:4010']
+    depends_on: [inbox]

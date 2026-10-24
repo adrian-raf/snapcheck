@@ -1,0 +1,49 @@
+{
+  "name": "snapcheck",
+  "version": "0.1.0",
+  "description": "Conformance test harness and strict mock server for SNAP BI (Standar Nasional Open API Pembayaran).",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Adrian Rafly",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "keys:ensure": "tsx scripts/ensure-keys.ts",
+    "mock:start": "npm run keys:ensure && tsx src/mock-server/main.ts",
+    "test": "npm run test:unit && npm run test:conformance",
+    "test:unit": "vitest run",
+    "test:conformance": "playwright test",
+    "report": "playwright show-report",
+    "requirements:doc": "tsx scripts/generate-requirements-doc.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "snapcheck": "tsx src/cli/main.ts",
+    "inbox:start": "npm run keys:ensure && tsx src/notification-inbox/main.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.12.7",
+    "tsx": "^4.23.15",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
+    "eslint-plugin-playwright": "^2.12.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  },
+  "bin": {
+    "snapcheck": "bin/snapcheck.mjs"
+  }
+}

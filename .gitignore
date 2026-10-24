@@ -1,0 +1,8 @@
+node_modules/
+.keys/
+.env
+playwright-report/
+test-results/
+coverage/
+compliance-report/
+.keys.tmp-*/

@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Static checks
+        run: |
+          npm run format:check
+          npm run lint
+          npm run typecheck
+
+      - name: Requirement traceability
+        run: npm run requirements:doc
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: CLI smoke test
+        run: |
+          npm run --silent snapcheck -- profiles
+          npm run --silent snapcheck -- requirements --basis provider-variant
+
+      # The compliance reporter also writes its Markdown summary to the job summary.
+      - name: Conformance suite (one mock per profile)
+        run: npm run test:conformance
+
+      - name: Upload reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            compliance-report/
+            playwright-report/
+          retention-days: 14
+
+  windows:
+    # Proves the CLI, key generation and the full suite work on Windows, not only on Linux.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Line endings stayed LF (see .gitattributes)
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: CLI smoke test
+        run: npm run --silent snapcheck -- profiles
+
+      - name: Conformance suite (one mock per profile)
+        run: npm run test:conformance
+
+  docker:
+    # Builds the mock image and runs the suite against each container as an external target,
+    # so the Dockerfile is verified end to end.
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create the shared key pair
+        run: npm run keys:ensure
+
+      - name: Start one container per profile
+        run: docker compose up --detach --build --wait
+
+      - name: Conformance suite against the containers
+        run: |
+          SNAP_BASE_URL=http://127.0.0.1:4010 SNAP_PROFILE=bca     npx playwright test
+          SNAP_BASE_URL=http://127.0.0.1:4011 SNAP_PROFILE=bri     npx playwright test
+          SNAP_BASE_URL=http://127.0.0.1:4012 SNAP_PROFILE=default npx playwright test
+
+      - name: Container logs
+        if: ${{ failure() }}
+        run: docker compose logs
+
+      - name: Stop containers
+        if: ${{ always() }}
+        run: docker compose down

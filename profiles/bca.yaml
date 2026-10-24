@@ -1,0 +1,28 @@
+# Bank Central Asia (BCA), from its public SNAP documentation.
+name: bca
+displayName: BCA
+description: >-
+  BCA SNAP behaviour as documented publicly. The only profile that signs the
+  query string, sorted and RFC 3986-encoded.
+sources:
+  - https://developer.bca.co.id/en/Dokumentasi
+paths:
+  accessToken: /openapi/v1.0/access-token/b2b
+  balanceInquiry: /openapi/v1.0/balance-inquiry
+  transferIntrabank: /openapi/v1.0/transfer-intrabank # follows BCA's pattern; not confirmed
+  transferStatus: /openapi/v1.0/transfer/status # follows BCA's pattern; not confirmed
+timestamp:
+  timezone: WIB
+  milliseconds: false # "fixed at 25 characters"
+signature:
+  queryString: include-sorted # "Relative URL also includes the query string"
+accessToken:
+  tokenType: bearer # from BCA's response example
+transferStatus:
+  notFound: http-404 # not documented in the pages checked
+responseCases: {}
+unverified:
+  - paths.transferIntrabank
+  - responseCases.duplicatePartnerReferenceNo
+  - paths.transferStatus
+  - transferStatus.notFound

@@ -1,0 +1,12 @@
+node_modules
+.keys
+.keys.tmp-*
+.env
+.git
+.github
+playwright-report
+test-results
+compliance-report
+coverage
+tests
+docs

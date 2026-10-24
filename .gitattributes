@@ -1,0 +1,6 @@
+# Keep LF line endings on every OS. Without this, Git on Windows checks files out
+# with CRLF and `npm run format:check` fails on a fresh clone.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary

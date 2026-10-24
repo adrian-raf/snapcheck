@@ -1,0 +1,31 @@
+# Reference profile: the behaviour most providers documented when the spec was
+# cross-checked (docs/SPEC-VERIFICATION.md). Used when no profile is chosen.
+name: default
+displayName: SNAP reference (majority behaviour)
+description: >-
+  Values shared by most published SNAP implementations. Use it for a provider
+  that has no profile of its own yet.
+sources:
+  - https://docs.durianpay.id/reference/response-code-handling
+  - https://developers.doku.com/getting-started-with-doku-api/response-code/http-status-and-case-code
+  - https://docs.payermax.com/en/202606-version/developer/SNAP.md
+  - https://docs.midtrans.com/reference/transfer-status-inquiry
+  - https://snap-docs.paydia.id/snap-api/transfer-status/v1.0.0
+paths:
+  accessToken: /v1.0/access-token/b2b # Durianpay
+  balanceInquiry: /v1.0/balance-inquiry # Durianpay
+  transferIntrabank: /v1.0/transfer-intrabank # follows the same pattern; not listed by Durianpay
+  transferStatus: /v1.0/transfer/status # Durianpay, Midtrans
+timestamp:
+  timezone: WIB # PayerMax
+  milliseconds: false
+signature:
+  queryString: exclude # BRI, PayerMax
+accessToken:
+  tokenType: Bearer
+transferStatus:
+  notFound: http-404 # BRI, Paydia (Midtrans uses status-07)
+responseCases: {} # DOKU and Durianpay match the reference catalogue
+unverified:
+  - paths.transferIntrabank
+  - accessToken.tokenType
