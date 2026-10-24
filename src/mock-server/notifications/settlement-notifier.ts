@@ -6,7 +6,9 @@ import {
   buildNotificationHeaders,
   formatSnapTimestamp,
   generateExternalId,
+  isInFlight,
   type TimestampFormat,
+  type TransactionStatusCode,
 } from '../../core';
 import type { Clock } from '../clock';
 import type { TransferRecord, TransferService } from '../domain/transfer-service';
@@ -40,14 +42,29 @@ export class HttpSettlementNotifier implements SettlementNotifier {
   constructor(private readonly options: HttpSettlementNotifierOptions) {}
 
   scheduleFor(record: TransferRecord): void {
-    const waitMs = Math.max(0, record.settlesAtMs - this.options.clock().getTime());
+    const waitMs = Math.max(1, record.settlesAtMs - this.options.clock().getTime());
     // unref: a pending notification must not keep the process alive on shutdown.
-    setTimeout(() => void this.send(record), waitMs).unref();
+    setTimeout(() => {
+      this.sendWhenFinal(record);
+    }, waitMs).unref();
   }
 
-  private async send(record: TransferRecord): Promise<void> {
-    const { url, providerPrivateKey, transfers, clock, timestampFormat, log } = this.options;
-    const body = describeTransfer(record, transfers.statusOf(record));
+  /**
+   * A timer can wake up a millisecond before the clock reaches its target, and the clock
+   * may be a test clock. Only a final status is ever notified; otherwise wait again.
+   */
+  private sendWhenFinal(record: TransferRecord): void {
+    const status = this.options.transfers.statusOf(record);
+    if (isInFlight(status)) {
+      this.scheduleFor(record);
+      return;
+    }
+    void this.send(record, status);
+  }
+
+  private async send(record: TransferRecord, status: TransactionStatusCode): Promise<void> {
+    const { url, providerPrivateKey, clock, timestampFormat, log } = this.options;
+    const body = describeTransfer(record, status);
     const headers = buildNotificationHeaders({
       path: url.pathname,
       body,

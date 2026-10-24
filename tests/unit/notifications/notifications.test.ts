@@ -72,6 +72,11 @@ describe('judgeNotification', () => {
   });
 });
 
+interface ReceivedNotification {
+  readonly request: IncomingMessage;
+  readonly body: unknown;
+}
+
 describe('settlement notification from the mock', () => {
   let testApp: TestApp | undefined;
   let receiver: ReturnType<typeof createServer> | undefined;
@@ -81,8 +86,12 @@ describe('settlement notification from the mock', () => {
     receiver?.close();
   });
 
-  it('is sent once a pending transfer settles, signed with the provider key', async () => {
-    const received = new Promise<{ request: IncomingMessage; body: unknown }>((resolve) => {
+  /** Starts a partner endpoint and a mock that notifies it; resolves on the first notification. */
+  async function startMockNotifying(): Promise<{
+    app: TestApp;
+    received: Promise<ReceivedNotification>;
+  }> {
+    const received = new Promise<ReceivedNotification>((resolve) => {
       receiver = createServer((request, response) => {
         let raw = '';
         request.on('data', (chunk: Buffer) => (raw += chunk.toString()));
@@ -104,14 +113,12 @@ describe('settlement notification from the mock', () => {
         },
       },
     });
-    const partnerReferenceNo = generatePartnerReferenceNo();
-    // The notifier waits on real timers; advance the mock clock so the status reads as settled.
-    setTimeout(() => {
-      if (testApp) testApp.clock.now = new Date(testApp.clock.now.getTime() + 60_000);
-    }, 10);
+    return { app: testApp, received };
+  }
 
-    await testApp.post(
-      testApp.profile.paths.transferIntrabank,
+  const submitPendingTransfer = async (app: TestApp, partnerReferenceNo: string) =>
+    app.post(
+      app.profile.paths.transferIntrabank,
       {
         partnerReferenceNo,
         amount: { value: '10000.00', currency: 'IDR' },
@@ -121,6 +128,19 @@ describe('settlement notification from the mock', () => {
       },
       { [FAULT_HEADER]: FAULTS.pending },
     );
+
+  /** The notifier waits on real timers; this moves the mock clock past the settlement. */
+  const settleAfter = (app: TestApp, realMs: number) =>
+    setTimeout(() => {
+      app.clock.now = new Date(app.clock.now.getTime() + 60_000);
+    }, realMs);
+
+  it('is sent once a pending transfer settles, signed with the provider key', async () => {
+    const { app, received } = await startMockNotifying();
+    const partnerReferenceNo = generatePartnerReferenceNo();
+    settleAfter(app, 10);
+
+    await submitPendingTransfer(app, partnerReferenceNo);
 
     const { request, body } = await received;
     expect(request.url).toBe(PATH);
@@ -134,5 +154,16 @@ describe('settlement notification from the mock', () => {
         provider.publicKey,
       ),
     ).toEqual({ verified: true });
+  });
+
+  // Regression: in CI a timer fired a millisecond early and the notification said "03 Pending".
+  it('waits again, instead of notifying "Pending", when the timer fires before the clock settles', async () => {
+    const { app, received } = await startMockNotifying();
+    settleAfter(app, 120); // Well after the 50 ms timer has fired at least once.
+
+    await submitPendingTransfer(app, generatePartnerReferenceNo());
+
+    const { body } = await received;
+    expect(body).toMatchObject({ latestTransactionStatus: '00' });
   });
 });
