@@ -1,12 +1,36 @@
 # snapcheck
 
-Conformance test harness and strict mock server for **SNAP BI** (Standar Nasional Open API
-Pembayaran), the Indonesian national open API payment standard.
+[![CI](https://github.com/adrian-raf/snapcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/adrian-raf/snapcheck/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-SNAP is one standard, but every bank and payment gateway implements it slightly differently —
-timestamp formats, `X-EXTERNAL-ID` rules, response codes. Those differences are where
-integrations break. snapcheck turns the rules into an executable, traceable test suite that
-runs against a bundled mock or against a provider sandbox.
+**Conformance tests and a strict mock server for SNAP BI**, the Indonesian national open API
+payment standard (Standar Nasional Open API Pembayaran), so that bank integrations do not break
+on the details, and never pay twice.
+
+SNAP is one standard, but every bank and payment gateway implements it slightly differently.
+Those differences are where integrations break. snapcheck turns the rules into an executable,
+traceable test suite that runs against a bundled mock or against a provider sandbox.
+
+## What it catches
+
+Real differences found while cross-checking the public documentation of SNAP participants
+([details](docs/SPEC-VERIFICATION.md)):
+
+- **The signed URL.** BCA signs the query string, sorted and RFC 3986-encoded; BRI and PayerMax
+  leave it out. Sign it the wrong way and every request with query parameters is rejected.
+- **The duplicate code.** A repeated `partnerReferenceNo` is `409XX01` at DOKU, Durianpay and
+  Midtrans, but `409XX00` at BRI, the same code as an `X-EXTERNAL-ID` conflict.
+- **"Transaction not found".** BRI and Paydia answer `404XX01`; Midtrans answers `200` with
+  `latestTransactionStatus: "07"`. Misread it, and a client either never retries a failed
+  transfer or retries a paid one.
+- **A transfer paid twice.** The mock can lose the answer _after_ moving the money. A client that
+  resends without checking the status first is caught on the balance: `990000.00` expected,
+  `980000.00` received.
+
+At a glance: 33 catalogued requirements, each with its source and the business risk if broken;
+3 provider profiles (reference, BRI, BCA); CI on Linux, Windows and Docker.
+
+![Compliance report: three provider profiles, all requirements passing](docs/images/compliance-report.png)
 
 > Not affiliated with Bank Indonesia or ASPI. Rules are implemented from public provider
 > documentation; verify them against the official SNAP specification before relying on them.
@@ -121,7 +145,7 @@ npm run snapcheck -- run --env-file .env --grep @standard
 ```
 
 When `SNAP_BASE_URL` is set no mock is started, a single `sandbox` project runs with
-`SNAP_PROFILE`, and `@mock-policy` checks are skipped. A failing `@provider-variant` check usually
+`SNAP_PROFILE`, and `@mock-only` checks (mock policy and resilience) are skipped. A failing `@provider-variant` check usually
 means the profile is wrong, not the provider. Use only credentials you own, respect the provider's
 sandbox terms, and run it manually rather than on every push.
 
@@ -140,6 +164,11 @@ sandbox terms, and run it manually rather than on every push.
 - **Secure defaults.** Constant-time HMAC comparison, identical failure reasons to prevent
   client enumeration, sensitive headers redacted from logs.
 
+## Author
+
+Built by [Adrian Rafly](https://github.com/adrian-raf), QA Engineer, as a study of how SNAP is
+implemented across Indonesian providers and how to test integrations against it.
+
 ## License
 
-MIT
+[MIT](LICENSE)
